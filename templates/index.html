@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kallekia</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Commissioner:wght@400;500;600&family=Quantico:wght@400;700&family=Special+Elite&family=Wix+Madefor+Text:wght@400;500;600&display=swap');
+        html {
+            font-family: 'Wix Madefor Text', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: rgb(20, 30, 36);
+            color: white;
+        }
+        textarea {
+            border: none;
+            outline: none;
+        }
+        button {
+            font-family: 'Wix Madefor Text', sans-serif;
+            border: none;
+            outline: none;
+            display: inline-block;
+        }
+        button:hover {
+            cursor: pointer;
+        }
+        #output {
+            font-family: 'Wix Madefor Text', sans-serif;
+            font-size: 16px;
+            min-height: 50px;
+            height: 100vh;
+            width: 100%;
+            border: 0px;
+            box-sizing: border-box;
+            padding: 50px;
+            padding-right: 750px;
+            overflow: scroll;
+        }
+        #prompt {
+            font-family: 'Wix Madefor Text', sans-serif;
+            font-size: 16px;
+            min-height: 30%;
+            max-height: 30%;
+            height: 30%;
+            min-width: 100%;
+            max-width: 100%;
+            width: 100%;
+            border: 0px;
+            background-color: rgb(16, 24, 28);
+            color: white;
+            line-height: 20px;
+            box-sizing: border-box;
+            padding: 50px;
+            padding-top: 0px;
+            margin-top: 50px;
+        }
+        #prompt-container {
+            overflow: scroll;
+            display: inline-block;
+            font-size: 15px;
+            min-height: 100vh;
+            max-height: 100vh;
+            height: 100vh;
+            min-width: 30%;
+            max-width: 30%;
+            width: 30%;
+            border: 0px;
+            background-color: rgb(16, 24, 28);
+            line-height: 20px;
+            justify-content: center;
+        }
+        #split-container {
+            display: flex;
+        }
+        #button {
+            margin-top: 50px;
+            width: 170px;
+            height: 50px;
+            font-size: 15px;
+            text-transform: uppercase;
+            color: white;
+            background-color: rgb(25, 40, 49);
+            transition: background-color 0.2s ease-in-out;
+            border-radius: 10px;
+        }
+        #button:hover {
+            background-color: rgb(18, 30, 36);
+        }
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 5px;
+            border-radius: 1px;  
+            background: rgb(25, 40, 49);
+            outline: none;
+            opacity: 0.7;
+            -webkit-transition: .2s;
+            transition: opacity .2s;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%; 
+            background: rgb(29, 55, 67);
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgb(29, 55, 67);
+            cursor: pointer;
+        }
+        .slidecontainer {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="split-container">
+        <div id="prompt-container">
+            <h1 style="font-family: 'Wix Madefor Text', sans-serif; text-transform: uppercase; display: block; width: 100%; margin-top: 100px; font-size: 40px; text-align: center; font-weight: 800;">Kallekia</h1>
+            <textarea rows="50" cols="50" type="text" id="prompt" name="prompt" size="50" placeholder="Enter your prompt"></textarea>
+            <div style="display: block; width: 345px; margin: auto;">
+                <div class="slidecontainer">
+                    <div>Temperature (diversity)</div>
+                    <input type="range" min="1" max="50" value="10" class="slider" id="temperature-range">
+                    <div id="temperature-demo">0</div>
+                </div>
+                <div class="slidecontainer">
+                    <div>Nucleus Sampling (top_p)</div>
+                    <input type="range" min="1" max="100" value="19" class="slider" id="top-p-range">
+                    <div id="top-p-demo">0</div>
+                </div>
+                <button id="button" onclick="generateText()">Generate Text</button>
+                <button id="button" onclick="generateText()">Clear</button>
+            </div>
+        </div>
+
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const socket = io('http://127.0.0.1:5000'); // Connect to the server
+        var text = '';
+
+        socket.on('message', (data) => {
+            const newText = data.data;  // The streamed message
+            const meaning = data.meaning;
+
+            console.log(newText)
+
+            if (meaning == 0) {
+                text += newText;
+            } else {
+                text += ' ' + newText;
+            }
+
+            document.getElementById('output').innerText = text;
+        });
+
+        var temperatureSlider = document.getElementById("temperature-range");
+        var temperatureOutput = document.getElementById("temperature-demo");
+
+        function generateText() {
+            const prompt = document.getElementById('prompt').value;
+            document.getElementById('output').innerText = 'Loading!';
+            
+            // Check if the input is empty
+            
+            if (!prompt) {
+                document.getElementById('output').innerText = 'Please enter a prompt!';
+                return;
+            }
+
+            text = prompt
+
+            $.ajax({
+                url: '/generate',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ prompt: prompt, temp: temperatureSlider.value/10.0, nucl: toppOutput.value/20.0}),
+                error: function() {
+                    document.getElementById('output').innerText = 'Error generating text. Please try again.';
+                }
+            });
+        }
+
+        temperatureOutput.innerHTML = temperatureSlider.value/10.0; // Display the default slider value
+
+        temperatureSlider.oninput = function() {
+            temperatureOutput.innerHTML = this.value/10.0;
+        }
+
+
+        var toppSlider = document.getElementById("top-p-range");
+        var toppOutput = document.getElementById("top-p-demo");
+        toppOutput.innerHTML = toppSlider.value/20.0; // Display the default slider value
+
+        toppSlider.oninput = function() {
+            toppOutput.innerHTML = this.value/20.0;
+        }
+    </script>
+</body>
+</html>
