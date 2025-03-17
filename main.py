@@ -20,7 +20,7 @@ app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 10  # 10 MB
 # Define a custom logits processor to force specific tokens
 class ForceTokenLogitsProcessor:
 
-    def __init__(self, forced_token_ids, weight=5.5):
+    def __init__(self, forced_token_ids, weight=4.5):
         self.forced_token_ids = set(forced_token_ids)
         self.weight = weight
 
@@ -42,53 +42,43 @@ def generate():
 
     try:
         input_ids = tokenizer.encode(prompt, return_tensors="pt")
-
-        # Encode the forced word(s)
-        words = ['test']
-        forced_token_ids = [] 
-        for word in words:
-            forced_token_ids.extend(tokenizer.encode(word, add_special_tokens=False))
-
-        # Add logits processor
-        logits_processor = LogitsProcessorList()
-        logits_processor.append(ForceTokenLogitsProcessor(forced_token_ids))
-
         generated_ids = input_ids[0].tolist()
-        max_generated_tokens = 250
+        max_generated_tokens = 100
+
+        current_text = prompt  # Keep track of generated words
+        buffer = ""  # To store word fragments
 
         for _ in range(max_generated_tokens):
-
             outputs = model.generate(
                 torch.tensor([generated_ids]),
-                max_length=len(generated_ids) + 1,
+                max_length=len(generated_ids) + 1,  # Generate only one token at a time
                 num_return_sequences=1,
                 no_repeat_ngram_size=3,
                 repetition_penalty=1.5,
                 do_sample=True,
-                top_k=20,
+                top_k=50,
                 top_p=nucl,
                 temperature=float(temp),
                 eos_token_id=tokenizer.eos_token_id,
-                pad_token_id=tokenizer.pad_token_id,
-                logits_processor=logits_processor
+                pad_token_id=tokenizer.pad_token_id
             )
 
             new_token = outputs[0, -1].item()
             if new_token == tokenizer.eos_token_id:
-                break
+                break  # Stop if EOS token is reached
 
             generated_ids.append(new_token)
 
+            # Decode token but do not send immediately
             new_text = tokenizer.decode([new_token], skip_special_tokens=True)
-            meaning = dictionary.meaning(new_text, True)
-            i = 1 if meaning is None else 0
+            buffer += new_text
 
-            print(new_text)
+            # Only emit a word when we detect a space (to avoid partial words)
+            word = buffer
+            current_text += word
+            socketio.emit('message', {'data': new_text})
 
-            socketio.emit('message', {'data': new_text, 'meaning': 1 - i})
-
-        generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
-        return jsonify({'generated_text': generated_text})
+        return jsonify({'generated_text': current_text})
 
     except Exception as e:
         print(e)
